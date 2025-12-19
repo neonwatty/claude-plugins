@@ -558,10 +558,116 @@ You are a build engineer. Verify or create a Makefile for consistent local/CI co
 
 ## Your Task
 
-1. Check if Makefile exists:
-   ```bash
-   ls -la Makefile
-   ```
+### Step 0: Verify Base Project Setup
+
+First, ensure the project has the foundational files:
+
+**0a. Check/create package.json:**
+```bash
+if [ ! -f package.json ]; then
+  npm init -y
+  # Update to use ES modules
+  npm pkg set type="module"
+fi
+```
+
+**0b. Check/create tsconfig.json:**
+```bash
+if [ ! -f tsconfig.json ]; then
+  cat > tsconfig.json << 'TSEOF'
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": ["src", "e2e"]
+}
+TSEOF
+fi
+```
+
+**0c. Check/create eslint.config.js:**
+```bash
+if [ ! -f eslint.config.js ]; then
+  cat > eslint.config.js << 'ESLINTEOF'
+import js from '@eslint/js';
+import tseslint from 'typescript-eslint';
+import reactHooks from 'eslint-plugin-react-hooks';
+import reactRefresh from 'eslint-plugin-react-refresh';
+import globals from 'globals';
+
+export default tseslint.config(
+  { ignores: ['dist', 'node_modules'] },
+  {
+    extends: [js.configs.recommended, ...tseslint.configs.recommended],
+    files: ['**/*.{ts,tsx}'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      globals: globals.browser,
+    },
+    plugins: {
+      'react-hooks': reactHooks,
+      'react-refresh': reactRefresh,
+    },
+    rules: {
+      ...reactHooks.configs.recommended.rules,
+      'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+    },
+  },
+);
+ESLINTEOF
+fi
+```
+
+**0d. Check/create vite.config.ts:**
+```bash
+if [ ! -f vite.config.ts ]; then
+  cat > vite.config.ts << 'VITEEOF'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig({
+  plugins: [react()],
+  resolve: {
+    alias: {
+      '@': new URL('./', import.meta.url).pathname,
+    },
+  },
+});
+VITEEOF
+fi
+```
+
+**0e. Install base dependencies if missing:**
+```bash
+# Check if vite is installed
+if ! npm ls vite >/dev/null 2>&1; then
+  npm install vite @vitejs/plugin-react
+  npm install -D typescript @types/react @types/react-dom
+fi
+```
+
+### Step 1: Check if Makefile exists
+```bash
+ls -la Makefile
+```
 
 2. If Makefile exists, verify it includes these targets:
    - `make dev` - start dev server
@@ -635,14 +741,20 @@ clean:
 ```
 
 4. Verify required dev dependencies exist in package.json:
-   - eslint, @typescript-eslint/eslint-plugin, @typescript-eslint/parser
+
+   **Linting & Code Quality:**
+   - eslint, @eslint/js, typescript-eslint, globals
+   - eslint-plugin-react-hooks, eslint-plugin-react-refresh
    - knip
+
+   **Testing:**
    - @playwright/test
-   - vitest (or jest)
+   - vitest, @vitest/coverage-v8, jsdom
+   - @testing-library/react, @testing-library/jest-dom
 
    If missing, add them:
    ```bash
-   npm install -D eslint @typescript-eslint/eslint-plugin @typescript-eslint/parser knip @playwright/test vitest
+   npm install -D eslint @eslint/js typescript-eslint globals eslint-plugin-react-hooks eslint-plugin-react-refresh knip @playwright/test vitest @vitest/coverage-v8 jsdom @testing-library/react @testing-library/jest-dom
    ```
 
 5. Create/update Playwright config with multi-browser projects (`playwright.config.ts`):
@@ -689,12 +801,43 @@ export default defineConfig({
 });
 ```
 
-6. Create e2e directory if missing:
+6. Create/update vitest.config.ts:
+```bash
+if [ ! -f vitest.config.ts ]; then
+  cat > vitest.config.ts << 'VITESTEOF'
+import { defineConfig } from 'vitest/config';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig({
+  plugins: [react()],
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.ts'],
+    include: ['src/**/*.test.{ts,tsx}'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html'],
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: ['src/test/**', '**/*.test.{ts,tsx}'],
+    },
+  },
+});
+VITESTEOF
+fi
+```
+
+7. Create e2e and src directories if missing:
    ```bash
-   mkdir -p e2e
+   mkdir -p e2e src/test
+
+   # Create vitest setup file if missing
+   if [ ! -f src/test/setup.ts ]; then
+     echo "import '@testing-library/jest-dom';" > src/test/setup.ts
+   fi
    ```
 
-7. Commit if changes made:
+8. Commit if changes made:
    ```bash
    git add Makefile playwright.config.ts e2e/ package.json package-lock.json
    git commit -m "Add Makefile and Playwright config for consistent build/test"
