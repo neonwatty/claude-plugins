@@ -64,11 +64,24 @@ In your project's `.claude/settings.json`:
 ## How It Works
 
 1. **Plan** - Breaks feature into 2-4 verifiable steps
-2. **Implement** - Builds each step, commits changes
-3. **Check** - Independent agent verifies via code review + Chrome MCP visual checks
+2. **Implement** - Builds each step with distinctive design choices
+3. **Check** - Independent agent verifies via code review + Chrome MCP visual checks + design quality
 4. **Loop** - If issues found, fix and re-check (max 3 attempts)
 5. **Escalate** - After 3 failures, asks user for guidance
 6. **Ship** - Creates PR when all steps pass
+
+## Design Aesthetics
+
+Looper enforces distinctive design choices to avoid "distributional convergence" (generic defaults). The visual checker will reject UIs that use:
+
+| Dimension | Rejected | Expected |
+|-----------|----------|----------|
+| Typography | Inter, Roboto, system fonts | Distinctive typefaces, extreme weight contrasts |
+| Color | Purple gradients, corporate blue | Cohesive themes, cultural aesthetics |
+| Motion | No animations | Staggered reveals, micro-interactions |
+| Backgrounds | Solid white/gray | Gradients, patterns, layered depth |
+
+See [`guides/design-aesthetics.md`](./guides/design-aesthetics.md) for detailed guidance and code examples.
 
 ## Project Configuration (Minimal)
 

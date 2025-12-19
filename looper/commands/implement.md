@@ -227,6 +227,15 @@ while attempts < max_attempts:
       3. Follow existing code patterns and conventions
       4. Commit: git commit -m "Step {n}: {title}"
 
+      ## Design Aesthetics (for UI work)
+      If this step involves UI, make unexpected, distinctive design choices:
+      - **Typography:** Avoid Inter/Roboto/system fonts. Use distinctive typefaces with extreme weight contrasts (100 vs 900) and 3x+ size jumps.
+      - **Color:** Avoid purple gradients and corporate palettes. Commit to a cohesive theme via CSS variables. Draw from cultural aesthetics or IDE themes (Dracula, Nord, Tokyo Night).
+      - **Motion:** Add staggered reveals, micro-interactions, and smooth transitions. Use animation-delay for cascading effects.
+      - **Backgrounds:** Avoid solid white/gray. Use subtle gradients, geometric patterns, or layered depth.
+
+      Reference `looper/guides/design-aesthetics.md` for detailed guidance.
+
       Return a summary of changes made and files modified.
       """
     )
@@ -345,6 +354,15 @@ Use Chrome MCP tools to verify:
 5. Test interactions: mcp__claude-in-chrome__computer with action: left_click
 6. Verify state: mcp__claude-in-chrome__javascript_tool if needed
 
+## Design Anti-Pattern Detection
+Flag if the UI shows signs of "distributional convergence" (generic defaults):
+- **Typography:** Inter, Roboto, Open Sans, Lato, or system-ui fonts
+- **Color:** Purple/blue gradients, corporate blue (#3b82f6), generic gray palettes
+- **Motion:** No animations or transitions on interactive elements
+- **Backgrounds:** Solid white (#ffffff) or light gray (#f5f5f5) with no depth
+
+If detected, mark as NEEDS_WORK and request distinctive alternatives per `looper/guides/design-aesthetics.md`.
+
 ## Output
 APPROVED or NEEDS_WORK with specific visual issues found.
 """
@@ -417,6 +435,15 @@ Use Chrome MCP tools:
 5. Test interactions: mcp__claude-in-chrome__computer with action: left_click
 6. Run JS checks: mcp__claude-in-chrome__javascript_tool if needed
 
+### 3.5 Design Anti-Pattern Detection
+Flag if the UI shows "distributional convergence" (generic defaults):
+- **Typography:** Inter, Roboto, Open Sans, Lato, or system-ui fonts
+- **Color:** Purple/blue gradients, corporate blue (#3b82f6), generic gray palettes
+- **Motion:** No animations or transitions on interactive elements
+- **Backgrounds:** Solid white (#ffffff) or light gray (#f5f5f5) with no depth
+
+If detected, mark as NEEDS_WORK and request distinctive alternatives per `looper/guides/design-aesthetics.md`.
+
 ### 4. Decision
 
 **APPROVE if:**
@@ -432,6 +459,7 @@ Use Chrome MCP tools:
 - E2E tests fail
 - Visual shows incorrect UI
 - Functional bug found
+- Design shows distributional convergence (generic fonts, purple gradients, no motion, solid backgrounds)
 
 ---
 
@@ -455,6 +483,12 @@ APPROVED
 ### Visual Check
 ✓ {what you saw}
 Screenshot confirms: {description}
+
+### Design Quality
+✓ Typography: {distinctive font choice, not generic}
+✓ Color: {cohesive theme, not purple gradient}
+✓ Motion: {animations/transitions present}
+✓ Background: {depth/texture, not solid white}
 
 ### Functional Check
 ✓ {what you tested}

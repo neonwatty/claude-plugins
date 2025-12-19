@@ -6,7 +6,7 @@ Custom plugins for Claude Code.
 
 | Plugin | Description |
 |--------|-------------|
-| [looper](./looper) | Autonomous feature implementation with independent verification |
+| [looper](./looper) | Autonomous feature implementation with independent verification and design quality enforcement |
 
 ## Installation
 
