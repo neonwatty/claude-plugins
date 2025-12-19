@@ -577,7 +577,7 @@ You are a build engineer. Verify or create a Makefile for consistent local/CI co
 3. If Makefile is missing or incomplete, create/update it:
 
 ```makefile
-.PHONY: dev build test test-e2e lint lint-fix knip typecheck check ci clean
+.PHONY: dev build test test-e2e test-e2e-mobile lint lint-fix knip typecheck check validate ci clean
 
 # Development
 dev:
@@ -587,13 +587,23 @@ dev:
 build:
 	npm run build
 
-# Testing
+# Testing - Unit
 test:
 	npm run test
 
+# Testing - E2E (Desktop Chromium)
 test-e2e:
+	npx playwright test --project=chromium
+
+# Testing - E2E (Mobile browsers)
+test-e2e-mobile:
+	npx playwright test --project="Mobile Chrome" --project="Mobile Safari"
+
+# Testing - E2E (All browsers)
+test-e2e-all:
 	npx playwright test
 
+# Testing - E2E with UI
 test-e2e-ui:
 	npx playwright test --ui
 
@@ -610,15 +620,18 @@ knip:
 typecheck:
 	npx tsc --noEmit
 
-# Combined Checks
+# Combined Checks (fast, no E2E)
 check: lint knip typecheck test build
 
+# Validate Everything (single command for all checks + E2E)
+validate: check test-e2e
+
 # CI Pipeline (matches GitHub Actions)
-ci: check test-e2e
+ci: check test-e2e-all
 
 # Cleanup
 clean:
-	rm -rf dist node_modules/.cache
+	rm -rf dist node_modules/.cache .playwright
 ```
 
 4. Verify required dev dependencies exist in package.json:
@@ -632,10 +645,59 @@ clean:
    npm install -D eslint @typescript-eslint/eslint-plugin @typescript-eslint/parser knip @playwright/test vitest
    ```
 
-5. Commit if changes made:
+5. Create/update Playwright config with multi-browser projects (`playwright.config.ts`):
+
+```typescript
+import { defineConfig, devices } from '@playwright/test';
+
+export default defineConfig({
+  testDir: './e2e',
+  fullyParallel: true,
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 2 : 0,
+  workers: process.env.CI ? 1 : undefined,
+  reporter: [
+    ['html'],
+    ...(process.env.CI ? [['github' as const]] : []),
+  ],
+  use: {
+    baseURL: 'http://localhost:5173',
+    trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
+  },
+
+  projects: [
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'Mobile Chrome',
+      use: { ...devices['Pixel 5'] },
+    },
+    {
+      name: 'Mobile Safari',
+      use: { ...devices['iPhone 12'] },
+    },
+  ],
+
+  webServer: {
+    command: 'make dev',
+    url: 'http://localhost:5173',
+    reuseExistingServer: !process.env.CI,
+  },
+});
+```
+
+6. Create e2e directory if missing:
    ```bash
-   git add Makefile package.json package-lock.json
-   git commit -m "Add Makefile for consistent build commands"
+   mkdir -p e2e
+   ```
+
+7. Commit if changes made:
+   ```bash
+   git add Makefile playwright.config.ts e2e/ package.json package-lock.json
+   git commit -m "Add Makefile and Playwright config for consistent build/test"
    ```
 
 ## Output
@@ -704,7 +766,34 @@ jobs:
         run: make build
 
   e2e:
-    name: E2E Tests
+    name: E2E Tests (Shard ${{ matrix.shard }}/${{ strategy.job-total }})
+    runs-on: ubuntu-latest
+    needs: check
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: Install Playwright
+        run: npx playwright install --with-deps chromium
+      - name: Run E2E Tests (Shard ${{ matrix.shard }}/3)
+        run: npx playwright test --project=chromium --shard=${{ matrix.shard }}/3
+      - name: Upload E2E Report
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-shard-${{ matrix.shard }}
+          path: playwright-report/
+          retention-days: 7
+
+  e2e-mobile:
+    name: E2E Mobile Tests
     runs-on: ubuntu-latest
     needs: check
     steps:
@@ -715,19 +804,24 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - name: Install Playwright
-        run: npx playwright install --with-deps
-      - name: Run E2E Tests
-        run: make test-e2e
-      - name: Upload E2E Report
+        run: npx playwright install --with-deps chromium webkit
+      - name: Run Mobile E2E Tests
+        run: make test-e2e-mobile
+      - name: Upload Mobile E2E Report
         uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: playwright-report
+          name: playwright-report-mobile
           path: playwright-report/
           retention-days: 7
 ```
 
-This uses Makefile targets for consistency between local and CI. Commit if changes made.
+**CI Features:**
+- **3 parallel shards** for desktop E2E (3x faster)
+- **Separate mobile job** for Mobile Chrome + Mobile Safari
+- Uses Makefile targets for consistency between local and CI
+
+Commit if changes made.
 
 ## Output
 Report: CI_READY or CI_CREATED with details.
