@@ -17,8 +17,12 @@
 These settings are used by the `/implement` command:
 
 - **Test Command:** `npm test`
+- **E2E Test Command:** `npm run test:e2e` (Playwright, Cypress, etc.)
+- **E2E Framework:** Playwright / Cypress / None
 - **App URL:** `http://localhost:3000`
 - **Dev Server Command:** `npm run dev`
+- **Lint Command:** `npm run lint`
+- **Build Command:** `npm run build`
 
 ## Key Directories
 

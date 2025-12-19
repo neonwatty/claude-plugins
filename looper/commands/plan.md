@@ -56,6 +56,16 @@ For each step, define:
 - What should be visually checkable in browser (if applicable)
 - What tests should pass
 
+### 4. Plan Test Coverage (E2E PRIORITY)
+
+For each step, specify:
+- **E2E tests (REQUIRED):** What user flows need E2E tests - this is how you actually validate the feature works. E2E tests are mandatory for ALL features, not just visual ones.
+- **Integration tests:** What component/service connections need testing
+- **Unit tests:** Only for complex algorithms or utility functions that benefit from isolated testing
+- **Test file locations:** Where tests should be created (e.g., `e2e/*.spec.ts`)
+
+**Philosophy:** Unit tests pass but features break. E2E tests simulate real user behavior and catch the bugs that matter.
+
 ---
 
 ## Output: Create PLAN.md
@@ -111,9 +121,14 @@ Navigate to `{url}` and verify:
 - {What interaction should work}
 (Or "N/A - no visual component" if purely backend)
 
-**Tests:**
-- Run: `{test command}`
-- Expected: {what should pass}
+**Tests to Write (E2E Required):**
+| Type | File | Description |
+|------|------|-------------|
+| E2E | `e2e/thing.spec.ts` | Test user flow: {describe what user does} |
+| E2E | `e2e/thing-edge-cases.spec.ts` | Test edge cases: {error states, boundaries} |
+| Unit | `src/__tests__/thing.test.ts` | (Optional) Complex algorithm tests |
+
+**Test Command:** `{test command}`
 
 **Checker Feedback:** -
 
@@ -138,8 +153,12 @@ Navigate to `{url}` and verify:
 **Visual Check:**
 {...}
 
-**Tests:**
-{...}
+**Tests to Write (E2E Required):**
+| Type | File | Description |
+|------|------|-------------|
+| E2E | `e2e/...` | Test user flow: ... |
+
+**Test Command:** `{test command}`
 
 **Checker Feedback:** -
 

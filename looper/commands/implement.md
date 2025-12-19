@@ -31,34 +31,95 @@ git checkout -b feature/${FEATURE_SLUG}
 mkdir -p .plans/${FEATURE_SLUG}
 ```
 
-### 1.2 Spawn Planner Agent
+### 1.2 Explore Codebase (PARALLEL AGENTS)
 
-Use the Task tool to spawn a Planner agent:
+Spawn exploration agents in parallel to understand the codebase faster:
+
+```
+# PARALLEL AGENT 1: Project Structure Explorer
+Task(
+  subagent_type: "Explore",
+  description: "Explore project structure",
+  prompt: """
+Explore this codebase and report on:
+1. Project structure (key directories)
+2. Tech stack (framework, language, package manager)
+3. Existing patterns and conventions
+4. Test setup (E2E framework, test locations)
+5. CI/CD configuration
+
+Return a structured summary.
+"""
+)
+
+# PARALLEL AGENT 2: Related Code Explorer
+Task(
+  subagent_type: "Explore",
+  description: "Find related code for feature",
+  prompt: """
+Find code related to this feature: {$ARGUMENTS}
+
+Search for:
+1. Similar existing features
+2. Files that will need modification
+3. Components/modules to integrate with
+4. Existing tests to reference
+
+Return file paths and relevant code patterns.
+"""
+)
+
+# PARALLEL AGENT 3: Dependency Explorer
+Task(
+  subagent_type: "Explore",
+  description: "Analyze dependencies",
+  prompt: """
+Analyze dependencies for this feature: {$ARGUMENTS}
+
+Identify:
+1. External packages needed
+2. Internal modules to import
+3. API endpoints or services to use
+4. Database models or schemas involved
+
+Return dependency map.
+"""
+)
+```
+
+Wait for all exploration agents to complete, then proceed to planning.
+
+### 1.3 Spawn Planner Agent
+
+Use the Task tool to spawn the Planner with exploration results:
 
 ```
 Task(
   subagent_type: "general-purpose",
   description: "Plan feature implementation",
   prompt: """
-You are a planning agent. Analyze the feature request and create a step-by-step implementation plan. Do NOT implement anything.
+You are a planning agent. Create a step-by-step implementation plan. Do NOT implement anything.
 
 ## Feature Request
 {$ARGUMENTS}
+
+## Codebase Context (from exploration)
+{exploration_agent_1_results}
+{exploration_agent_2_results}
+{exploration_agent_3_results}
 
 ## Plan Location
 Create the plan at: .plans/{feature_slug}/PLAN.md
 
 ## Your Task
 
-1. **Explore the codebase** to understand:
-   - Project structure and tech stack
-   - Existing patterns and conventions
-   - Related files and dependencies
+1. **Use the exploration results** - don't re-explore, use what was found
 
 2. **Break down** the feature into 2-4 discrete steps where:
    - Each step is independently verifiable
    - Each step can be committed separately
    - Steps are ordered by dependency
+   - Each step includes E2E test requirements
 
 3. **Create PLAN.md** at the specified location with this structure:
 
@@ -122,7 +183,7 @@ Create the plan at: .plans/{feature_slug}/PLAN.md
 )
 ```
 
-### 1.3 Review Plan
+### 1.4 Review Plan
 
 After Planner creates PLAN.md, review it before proceeding. Confirm the steps make sense.
 
@@ -138,18 +199,152 @@ max_attempts = 3
 
 while attempts < max_attempts:
 
-    ### 2.1 Implement
-    - Read step description from PLAN.md
-    - Implement the changes
-    - Commit: git commit -m "Step {n}: {title}"
+    ### 2.1 Implement & Write Tests (PARALLEL AGENTS)
+
+    Spawn TWO agents in parallel using a single message with multiple Task tool calls:
+
+    ```
+    # PARALLEL AGENT 1: Implementation
+    Task(
+      subagent_type: "general-purpose",
+      description: "Implement step {n}",
+      prompt: """
+      Implement this step of the feature.
+
+      ## Step Details
+      **Title:** {step_title}
+      **Description:** {step_description}
+      **Files to Change:** {files from PLAN.md}
+      **Acceptance Criteria:** {criteria}
+
+      ## Your Task
+      1. Read the existing code in the files to change
+      2. Implement the changes described
+      3. Follow existing code patterns and conventions
+      4. Commit: git commit -m "Step {n}: {title}"
+
+      Return a summary of changes made and files modified.
+      """
+    )
+
+    # PARALLEL AGENT 2: E2E Test Writing
+    Task(
+      subagent_type: "general-purpose",
+      description: "Write E2E tests for step {n}",
+      prompt: """
+      Write E2E tests for this feature step. E2E tests are the PRIMARY validation.
+
+      ## Step Details
+      **Title:** {step_title}
+      **Description:** {step_description}
+      **Acceptance Criteria:** {criteria}
+      **Visual Check:** {visual_check}
+      **E2E Framework:** {from CLAUDE.md config}
+
+      ## Your Task
+      1. Understand what the feature does from the step description
+      2. Write E2E tests that simulate real user behavior
+      3. Cover the main user flow
+      4. Cover edge cases and error states
+      5. Follow project's E2E test patterns
+      6. Commit: git commit -m "Step {n}: Add E2E tests for {title}"
+
+      **Test Location:** e2e/{feature-name}.spec.ts
+
+      Return the test file path and what scenarios are covered.
+      """
+    )
+    ```
+
+    Wait for both agents to complete, then proceed.
 
     ### 2.2 Run Tests
-    - Execute test command
-    - If tests fail: fix issues, attempts++, continue loop
+    - Run E2E test suite first - this is the real validation
+    - Run unit/integration tests
+    - If any tests fail: fix issues, attempts++, continue loop
 
-    ### 2.3 Spawn Checker Agent
+    ### 2.3 Spawn Verification Agents (PARALLEL)
 
-    Use Task tool to spawn Checker:
+    Spawn verification agents in parallel using a single message with multiple Task tool calls:
+
+    ```
+    # PARALLEL AGENT 1: Code Review & Test Verification
+    Task(
+      subagent_type: "general-purpose",
+      description: "Code review step {n}",
+      prompt: """
+You are a code reviewer. Verify the implementation and test coverage.
+
+## Step Being Verified
+**Title:** {step_title}
+**Description:** {step_description}
+**Acceptance Criteria:** {criteria}
+
+## Changes Made
+```diff
+{git diff HEAD~2..HEAD}
+```
+
+## Test Results
+```
+{output of test command}
+```
+
+## Your Task
+
+### 1. Code Review
+- [ ] Logic correctly implements what's described
+- [ ] No obvious bugs or broken logic
+- [ ] Edge cases handled appropriately
+
+### 2. E2E Test Coverage (PRIORITY)
+- [ ] E2E tests exist for the new feature
+- [ ] E2E tests cover main user flow
+- [ ] E2E tests cover edge cases
+- [ ] E2E tests pass
+
+**REJECT if no E2E tests exist.**
+
+## Output
+APPROVED or NEEDS_WORK with specific issues.
+"""
+    )
+
+    # PARALLEL AGENT 2: Visual Verification (if Visual Check is not "N/A")
+    Task(
+      subagent_type: "general-purpose",
+      description: "Visual verification step {n}",
+      prompt: """
+You are a visual QA checker. Verify the UI implementation using Chrome.
+
+## Step Being Verified
+**Title:** {step_title}
+**Visual Check:** {visual_check_criteria}
+**App URL:** {app_url}
+
+## Your Task
+Use Chrome MCP tools to verify:
+
+1. Navigate: mcp__claude-in-chrome__navigate to App URL
+2. Screenshot: mcp__claude-in-chrome__computer with action: screenshot
+3. Read page: mcp__claude-in-chrome__read_page
+4. Find elements: mcp__claude-in-chrome__find for specific elements
+5. Test interactions: mcp__claude-in-chrome__computer with action: left_click
+6. Verify state: mcp__claude-in-chrome__javascript_tool if needed
+
+## Output
+APPROVED or NEEDS_WORK with specific visual issues found.
+"""
+    )
+    ```
+
+    Wait for both agents to complete. Both must APPROVE to proceed.
+
+    ---
+
+    **LEGACY SINGLE-AGENT FALLBACK (if Visual Check is "N/A"):**
+
+    If no visual verification needed, spawn single Checker:
 
     Task(
       subagent_type: "general-purpose",
@@ -188,7 +383,18 @@ Read the changed files and verify:
 
 Do NOT nitpick style, formatting, or naming.
 
-### 2. Visual Verification (Required when Visual Check is not "N/A")
+### 2. Test Coverage Verification (E2E PRIORITY)
+Verify E2E tests were written - this is the primary validation:
+- [ ] **E2E tests exist for the new feature** (REQUIRED for all features, not just visual ones)
+- [ ] E2E tests cover the main user flow and edge cases
+- [ ] E2E tests run successfully and validate real behavior
+- [ ] Unit tests exist for complex algorithms or utility functions (secondary)
+
+Use Glob to find test files: `e2e/**/*.spec.ts`, `**/*.test.ts`, `**/__tests__/**`
+
+**REJECT if no E2E tests exist for the feature** - unit tests alone are insufficient.
+
+### 3. Visual Verification (Required when Visual Check is not "N/A")
 Use Chrome MCP tools:
 
 1. Navigate: mcp__claude-in-chrome__navigate to App URL
@@ -198,17 +404,19 @@ Use Chrome MCP tools:
 5. Test interactions: mcp__claude-in-chrome__computer with action: left_click
 6. Run JS checks: mcp__claude-in-chrome__javascript_tool if needed
 
-### 3. Decision
+### 4. Decision
 
 **APPROVE if:**
 - All acceptance criteria met
-- Tests pass
+- E2E tests exist and pass for the new feature
+- E2E tests validate the actual user flow works
 - Visual check confirms expected UI (if applicable)
 - No functional bugs
 
 **REJECT if:**
 - Any criterion not met
-- Tests fail
+- No E2E tests for the feature (unit tests alone are NOT sufficient)
+- E2E tests fail
 - Visual shows incorrect UI
 - Functional bug found
 
@@ -225,6 +433,11 @@ APPROVED
 ## Verification Summary
 ### Code Review
 ✓ {what you verified}
+
+### Test Coverage (E2E Priority)
+✓ E2E tests verify: {feature user flows}
+✓ E2E tests cover edge cases: {what edge cases}
+✓ Unit tests (if needed): {complex logic tested}
 
 ### Visual Check
 ✓ {what you saw}
@@ -314,15 +527,169 @@ Wait for user response before proceeding.
 
 ---
 
-## Phase 3: Integration
+## Phase 3: CI & Security Verification (PARALLEL AGENTS)
 
-After all steps are APPROVED:
+After all steps are APPROVED, spawn parallel agents for CI and security checks:
 
-### 3.1 Final Verification
-- Run full test suite
-- Ensure all changes are committed
+### 3.1 Spawn CI & Security Agents (PARALLEL)
 
-### 3.2 Push and Create PR
+Spawn THREE agents in parallel using a single message with multiple Task tool calls:
+
+```
+# PARALLEL AGENT 1: CI Workflow Verification/Creation
+Task(
+  subagent_type: "general-purpose",
+  description: "Verify/create CI workflow",
+  prompt: """
+You are a CI/CD specialist. Verify or create GitHub Actions workflow.
+
+## Your Task
+
+1. Check if workflow exists:
+   ```bash
+   ls -la .github/workflows/
+   ```
+
+2. If workflow exists, verify it includes:
+   - Lint step
+   - Unit test step
+   - E2E test step (REQUIRED)
+   - Build step
+   - Triggers on PR
+
+3. If workflow is missing or incomplete, create `.github/workflows/ci.yml`:
+
+```yaml
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npx playwright install --with-deps
+      - run: npm run test:e2e
+```
+
+Adapt to project's tech stack. Commit if changes made.
+
+## Output
+Report: CI_READY or CI_CREATED with details.
+"""
+)
+
+# PARALLEL AGENT 2: Secrets Scan
+Task(
+  subagent_type: "general-purpose",
+  description: "Scan for secrets",
+  prompt: """
+You are a security auditor. Scan for accidentally committed secrets.
+
+## Your Task
+
+1. Scan for secret patterns in changes:
+   ```bash
+   git diff origin/main...HEAD --name-only | xargs -I {} sh -c '
+     grep -l -E "(API_KEY|SECRET|PASSWORD|TOKEN|PRIVATE_KEY|aws_access_key|client_secret)" {} 2>/dev/null
+   '
+   ```
+
+2. Check for .env files:
+   ```bash
+   git diff origin/main...HEAD --name-only | grep -E "\.env$|\.env\.|credentials|secrets"
+   ```
+
+3. Check for hardcoded API keys:
+   ```bash
+   git diff origin/main...HEAD | grep -E "(sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36}|xox[baprs]-[a-zA-Z0-9-]+)"
+   ```
+
+4. Verify .gitignore includes:
+   - .env, .env.*
+   - *.pem, *.key
+   - credentials.json, secrets.yaml
+
+## Output
+SECRETS_CLEAR or SECRETS_FOUND with list of issues.
+
+**If secrets found, this is a BLOCKING issue.**
+"""
+)
+
+# PARALLEL AGENT 3: Full Test Suite
+Task(
+  subagent_type: "general-purpose",
+  description: "Run full test suite",
+  prompt: """
+Run the complete test suite to verify all changes work together.
+
+## Your Task
+
+1. Run E2E tests (PRIMARY):
+   ```bash
+   {e2e_test_command}
+   ```
+
+2. Run unit/integration tests:
+   ```bash
+   {test_command}
+   ```
+
+3. Run linter:
+   ```bash
+   {lint_command}
+   ```
+
+4. Run build:
+   ```bash
+   {build_command}
+   ```
+
+## Output
+ALL_PASS or FAILURES with specific test/lint/build failures.
+"""
+)
+```
+
+Wait for all three agents to complete.
+
+### 3.2 Handle Results
+
+- **If SECRETS_FOUND:** STOP immediately. Remove secrets, update .gitignore, re-run.
+- **If CI issues:** Fix workflow and commit.
+- **If test failures:** Fix and re-run Phase 3.
+- **All clear:** Proceed to Phase 4.
+
+---
+
+## Phase 4: Integration
+
+### 4.1 Push and Create PR
 ```bash
 git push -u origin {branch_name}
 gh pr create --title "{feature description}" --body "## Summary
@@ -336,14 +703,14 @@ gh pr create --title "{feature description}" --body "## Summary
 - [ ] CI checks pass"
 ```
 
-### 3.3 Monitor CI
+### 4.2 Monitor CI
 ```bash
 gh pr checks {pr_number}
 ```
 
 If CI fails, diagnose and fix.
 
-### 3.4 Finalize PLAN.md
+### 4.3 Finalize PLAN.md
 
 Update PLAN.md with completion information:
 
@@ -361,7 +728,7 @@ Feature "{title}" successfully implemented.
 - All tests passing
 ```
 
-### 3.5 Report Completion
+### 4.4 Report Completion
 
 ```
 ✅ Feature Implementation Complete
@@ -386,3 +753,10 @@ Steps completed:
 3. **Commit after each step** - Keep changes trackable
 4. **Escalate at 3 failures** - Don't spin forever
 5. **Independent checking** - Checker has fresh context; trust its assessment
+6. **E2E tests are mandatory** - Every new feature needs E2E tests, not just UI features
+7. **E2E tests are the real validation** - Unit tests pass but features break; E2E catches real bugs
+8. **Ensure CI exists** - Verify or create GitHub Actions workflow before PR
+9. **Scan for secrets** - Never push commits containing credentials or API keys
+10. **Verify .gitignore** - Sensitive files must be excluded from version control
+11. **Maximize parallelism** - Spawn multiple agents in parallel whenever tasks are independent
+12. **Single message, multiple Tasks** - Use one message with multiple Task tool calls for parallel work
