@@ -258,10 +258,19 @@ while attempts < max_attempts:
 
     Wait for both agents to complete, then proceed.
 
-    ### 2.2 Run Tests
-    - Run E2E test suite first - this is the real validation
-    - Run unit/integration tests
-    - If any tests fail: fix issues, attempts++, continue loop
+    ### 2.2 Run Local Checks
+    Run all checks using Makefile:
+    ```bash
+    make check    # lint, knip, typecheck, test, build
+    make test-e2e # E2E tests (primary validation)
+    ```
+
+    Or run full CI locally:
+    ```bash
+    make ci       # runs check + test-e2e
+    ```
+
+    - If any check fails: fix issues, attempts++, continue loop
 
     ### 2.3 Spawn Verification Agents (PARALLEL)
 
@@ -551,10 +560,12 @@ You are a CI/CD specialist. Verify or create GitHub Actions workflow.
    ```
 
 2. If workflow exists, verify it includes:
-   - Lint step
-   - Unit test step
-   - E2E test step (REQUIRED)
-   - Build step
+   - Lint step (`make lint`)
+   - Knip step (`make knip`) - dead code detection
+   - Typecheck step (`make typecheck`)
+   - Unit test step (`make test`)
+   - Build step (`make build`)
+   - E2E test step (`make test-e2e`) - REQUIRED
    - Triggers on PR
 
 3. If workflow is missing or incomplete, create `.github/workflows/ci.yml`:
@@ -569,7 +580,8 @@ on:
     branches: [main, master]
 
 jobs:
-  test:
+  check:
+    name: Lint, Knip, Typecheck, Test, Build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -578,13 +590,21 @@ jobs:
           node-version: '20'
           cache: 'npm'
       - run: npm ci
-      - run: npm run lint
-      - run: npm test
-      - run: npm run build
+      - name: Lint
+        run: make lint
+      - name: Knip (dead code check)
+        run: make knip
+      - name: Typecheck
+        run: make typecheck
+      - name: Unit Tests
+        run: make test
+      - name: Build
+        run: make build
 
   e2e:
+    name: E2E Tests
     runs-on: ubuntu-latest
-    needs: test
+    needs: check
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -592,11 +612,20 @@ jobs:
           node-version: '20'
           cache: 'npm'
       - run: npm ci
-      - run: npx playwright install --with-deps
-      - run: npm run test:e2e
+      - name: Install Playwright
+        run: npx playwright install --with-deps
+      - name: Run E2E Tests
+        run: make test-e2e
+      - name: Upload E2E Report
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
 ```
 
-Adapt to project's tech stack. Commit if changes made.
+This uses Makefile targets for consistency between local and CI. Commit if changes made.
 
 ## Output
 Report: CI_READY or CI_CREATED with details.
@@ -641,37 +670,41 @@ SECRETS_CLEAR or SECRETS_FOUND with list of issues.
 """
 )
 
-# PARALLEL AGENT 3: Full Test Suite
+# PARALLEL AGENT 3: Full Test Suite (using Makefile)
 Task(
   subagent_type: "general-purpose",
   description: "Run full test suite",
   prompt: """
-Run the complete test suite to verify all changes work together.
+Run the complete test suite using Makefile commands.
 
 ## Your Task
 
-1. Run E2E tests (PRIMARY):
-   ```bash
-   {e2e_test_command}
-   ```
+Run the full CI check locally:
 
-2. Run unit/integration tests:
-   ```bash
-   {test_command}
-   ```
+```bash
+make ci
+```
 
-3. Run linter:
-   ```bash
-   {lint_command}
-   ```
+This runs (in order):
+1. `make lint` - ESLint checks
+2. `make knip` - Dead code / unused export detection
+3. `make typecheck` - TypeScript compiler check
+4. `make test` - Vitest unit tests
+5. `make build` - Production build
+6. `make test-e2e` - Playwright E2E tests
 
-4. Run build:
-   ```bash
-   {build_command}
-   ```
+If `make ci` fails, run individual commands to identify the issue:
+```bash
+make lint      # Check for lint errors
+make knip      # Check for dead code
+make typecheck # Check for type errors
+make test      # Check for test failures
+make build     # Check for build errors
+make test-e2e  # Check for E2E failures
+```
 
 ## Output
-ALL_PASS or FAILURES with specific test/lint/build failures.
+ALL_PASS or FAILURES with specific command that failed and error details.
 """
 )
 ```
@@ -755,8 +788,10 @@ Steps completed:
 5. **Independent checking** - Checker has fresh context; trust its assessment
 6. **E2E tests are mandatory** - Every new feature needs E2E tests, not just UI features
 7. **E2E tests are the real validation** - Unit tests pass but features break; E2E catches real bugs
-8. **Ensure CI exists** - Verify or create GitHub Actions workflow before PR
-9. **Scan for secrets** - Never push commits containing credentials or API keys
-10. **Verify .gitignore** - Sensitive files must be excluded from version control
-11. **Maximize parallelism** - Spawn multiple agents in parallel whenever tasks are independent
-12. **Single message, multiple Tasks** - Use one message with multiple Task tool calls for parallel work
+8. **Use Makefile commands** - `make ci` runs all checks locally; same commands in GitHub Actions
+9. **Knip for dead code** - No unused exports or dead code allowed; `make knip` enforces this
+10. **Ensure CI exists** - Verify or create GitHub Actions workflow before PR
+11. **Scan for secrets** - Never push commits containing credentials or API keys
+12. **Verify .gitignore** - Sensitive files must be excluded from version control
+13. **Maximize parallelism** - Spawn multiple agents in parallel whenever tasks are independent
+14. **Single message, multiple Tasks** - Use one message with multiple Task tool calls for parallel work
