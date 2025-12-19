@@ -542,7 +542,105 @@ After all steps are APPROVED, spawn parallel agents for CI and security checks:
 
 ### 3.1 Spawn CI & Security Agents (PARALLEL)
 
-Spawn THREE agents in parallel using a single message with multiple Task tool calls:
+Spawn FOUR agents in parallel using a single message with multiple Task tool calls:
+
+```
+# PARALLEL AGENT 0: Makefile Verification/Creation
+Task(
+  subagent_type: "general-purpose",
+  description: "Verify/create Makefile",
+  prompt: """
+You are a build engineer. Verify or create a Makefile for consistent local/CI commands.
+
+## Your Task
+
+1. Check if Makefile exists:
+   ```bash
+   ls -la Makefile
+   ```
+
+2. If Makefile exists, verify it includes these targets:
+   - `make dev` - start dev server
+   - `make build` - production build
+   - `make test` - unit tests
+   - `make test-e2e` - E2E tests
+   - `make lint` - ESLint
+   - `make knip` - dead code detection
+   - `make typecheck` - TypeScript check
+   - `make check` - all checks (lint, knip, typecheck, test, build)
+   - `make ci` - full CI (check + test-e2e)
+
+3. If Makefile is missing or incomplete, create/update it:
+
+```makefile
+.PHONY: dev build test test-e2e lint lint-fix knip typecheck check ci clean
+
+# Development
+dev:
+	npm run dev
+
+# Build
+build:
+	npm run build
+
+# Testing
+test:
+	npm run test
+
+test-e2e:
+	npx playwright test
+
+test-e2e-ui:
+	npx playwright test --ui
+
+# Code Quality
+lint:
+	npx eslint . --ext .ts,.tsx
+
+lint-fix:
+	npx eslint . --ext .ts,.tsx --fix
+
+knip:
+	npx knip
+
+typecheck:
+	npx tsc --noEmit
+
+# Combined Checks
+check: lint knip typecheck test build
+
+# CI Pipeline (matches GitHub Actions)
+ci: check test-e2e
+
+# Cleanup
+clean:
+	rm -rf dist node_modules/.cache
+```
+
+4. Verify required dev dependencies exist in package.json:
+   - eslint, @typescript-eslint/eslint-plugin, @typescript-eslint/parser
+   - knip
+   - @playwright/test
+   - vitest (or jest)
+
+   If missing, add them:
+   ```bash
+   npm install -D eslint @typescript-eslint/eslint-plugin @typescript-eslint/parser knip @playwright/test vitest
+   ```
+
+5. Commit if changes made:
+   ```bash
+   git add Makefile package.json package-lock.json
+   git commit -m "Add Makefile for consistent build commands"
+   ```
+
+## Output
+MAKEFILE_READY or MAKEFILE_CREATED with details of what was added.
+"""
+)
+```
+
+Then spawn the remaining three agents:
 
 ```
 # PARALLEL AGENT 1: CI Workflow Verification/Creation
@@ -709,12 +807,13 @@ ALL_PASS or FAILURES with specific command that failed and error details.
 )
 ```
 
-Wait for all three agents to complete.
+Wait for all four agents to complete.
 
 ### 3.2 Handle Results
 
+- **If MAKEFILE missing targets:** Agent should have created/updated it.
 - **If SECRETS_FOUND:** STOP immediately. Remove secrets, update .gitignore, re-run.
-- **If CI issues:** Fix workflow and commit.
+- **If CI workflow issues:** Fix workflow and commit.
 - **If test failures:** Fix and re-run Phase 3.
 - **All clear:** Proceed to Phase 4.
 
