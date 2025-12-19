@@ -70,16 +70,19 @@ In your project's `.claude/settings.json`:
 5. **Escalate** - After 3 failures, asks user for guidance
 6. **Ship** - Creates PR when all steps pass
 
-## Project Configuration
+## Project Configuration (Minimal)
 
-Copy `CLAUDE.template.md` to your project as `CLAUDE.md` and fill in:
+Optionally create `CLAUDE.md` with just the app URL:
 
 ```markdown
 ## Looper Configuration
-- **Test Command:** npm test
-- **App URL:** http://localhost:3000
-- **Dev Server:** npm run dev
+- **App URL:** http://localhost:5173
 ```
+
+**That's it.** Looper automatically:
+- Creates a Makefile with standard targets (`make ci`, `make test-e2e`, etc.)
+- Installs required dev dependencies (eslint, knip, playwright, vitest)
+- Creates GitHub Actions CI workflow
 
 ## Plans Storage
 

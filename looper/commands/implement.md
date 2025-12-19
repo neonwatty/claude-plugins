@@ -9,10 +9,14 @@ Implement a feature with independent verification at each step.
 
 ## Configuration
 
-Before starting, confirm or ask for:
-- **Test Command:** (e.g., `npm test`, `pytest`, `go test ./...`)
-- **App URL:** (e.g., `http://localhost:3000`) - for visual verification
-- **Dev Server Command:** (e.g., `npm run dev`) - if app needs to be running
+Before starting, confirm the **App URL** for visual verification:
+- **App URL:** `http://localhost:5173` (Vite default) or ask user
+
+All other commands are standardized via Makefile:
+- `make ci` - runs all checks + E2E tests
+- `make dev` - starts dev server
+
+**Note:** Makefile and dependencies are created automatically in Phase 3 if missing.
 
 ---
 
