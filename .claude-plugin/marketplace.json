@@ -1,0 +1,11 @@
+{
+  "name": "my-plugins",
+  "description": "Custom Claude Code plugins",
+  "plugins": [
+    {
+      "name": "looper",
+      "path": "looper",
+      "description": "Autonomous feature implementation with independent verification"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "name": "looper",
+  "version": "1.0.0",
+  "description": "Autonomous feature implementation with independent verification. Plan → Implement → Check → Ship.",
+  "author": "neonwatty",
+  "repository": "https://github.com/neonwatty/claude-plugins",
+  "commands": [
+    "commands/implement.md",
+    "commands/plan.md",
+    "commands/check.md",
+    "commands/resume.md"
+  ],
+  "keywords": [
+    "implementation",
+    "verification",
+    "qa",
+    "autonomous",
+    "feature-development"
+  ]
+}
