@@ -1,20 +1,24 @@
 {
   "name": "looper",
   "version": "1.0.0",
-  "description": "Autonomous feature implementation with independent verification. Plan → Implement → Check → Ship.",
-  "author": "neonwatty",
+  "description": "Autonomous feature implementation with independent verification. Plan -> Implement -> Check -> Ship.",
+  "author": {
+    "name": "neonwatty"
+  },
   "repository": "https://github.com/neonwatty/claude-plugins",
+  "license": "MIT",
   "commands": [
-    "commands/implement.md",
-    "commands/plan.md",
-    "commands/check.md",
-    "commands/resume.md"
+    "./commands/implement.md",
+    "./commands/plan.md",
+    "./commands/check.md",
+    "./commands/resume.md"
   ],
   "keywords": [
     "implementation",
     "verification",
     "qa",
     "autonomous",
-    "feature-development"
+    "feature-development",
+    "design"
   ]
 }
